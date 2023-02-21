@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_DB: kong
+      POSTGRES_USER: kong_user
+      POSTGRES_PASSWORD: kong_password
+    ports:
+      - 5432
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U kong_user -d kong" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  kong-bootstrap:
+    build:
+      context: .
+    env_file: .env
+    command: [ "kong", "migrations", "bootstrap" ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  kong-migrate:
+    build:
+      context: .
+    env_file: .env
+    command: [ "kong", "migrations", "up" ]
+    depends_on:
+      kong-bootstrap:
+        condition: service_completed_successfully
+
+  kong:
+    build:
+      context: .
+    ports:
+      - 8000:8000
+      - 8001:8001
+    depends_on:
+      kong-migrate:
+        condition: service_completed_successfully
+    env_file: .env
