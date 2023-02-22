@@ -16,4 +16,6 @@ RUN luarocks install luaossl OPENSSL_DIR=/usr/local/kong CRYPTO_DIR=/usr/local/k
 COPY --from=builder /build/goql /usr/local/bin/goql
 RUN chown kong:0 /usr/local/bin/goql && chmod 755 /usr/local/bin/goql
 
+COPY --from=builder /build/postgres /usr/local/postgres
+
 USER kong
