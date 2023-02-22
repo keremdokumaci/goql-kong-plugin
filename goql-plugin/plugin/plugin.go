@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -11,7 +12,13 @@ import (
 	"github.com/Kong/go-pdk"
 	"github.com/keremdokumaci/goql"
 	"github.com/keremdokumaci/goql/pkg/gql/query"
+	"github.com/keremdokumaci/goql/pkg/migrations"
 	_ "github.com/lib/pq"
+)
+
+var (
+	gq          = goql.New()
+	whitelister goql.WhiteLister
 )
 
 const (
@@ -19,28 +26,45 @@ const (
 	PRIORITY = 1000 // Whatever ur priority is..
 )
 
-type Config struct {
-	Whitelister goql.WhiteLister
+type Config struct{}
+
+type Query struct {
+	Q string `json:"query"`
 }
 
 func New() any {
-	cfg := &Config{}
+	conf := &Config{}
+	return conf
+}
+
+func initGoql() error {
+	if whitelister != nil {
+		return nil
+	}
 
 	db, err := connectToPostgres()
 	if err != nil {
-		log.Panic(err.Error())
+		log.Print(err.Error())
+		return err
 	}
 
-	gq := goql.New()
-	gq.ConfigureDB(goql.POSTGRES, db)
+	gq.ConfigureCache(goql.INMEMORY).
+		ConfigureDB(goql.POSTGRES, db)
+
+	err = migrations.MigratePostgres(db)
+	if err != nil {
+		log.Print(err.Error())
+		return err
+	}
 
 	wl, err := gq.UseWhitelister()
 	if err != nil {
-		log.Panic(err.Error())
+		log.Print(err.Error())
+		return err
 	}
-	cfg.Whitelister = wl
 
-	return cfg
+	whitelister = wl
+	return nil
 }
 
 func connectToPostgres() (*sql.DB, error) {
@@ -53,23 +77,23 @@ func connectToPostgres() (*sql.DB, error) {
 	)
 
 	if host = os.Getenv("KONG_PG_HOST"); host == "" {
-		log.Panic("KONG_PG_HOST is required")
+		log.Print("KONG_PG_HOST is required")
 	}
 
 	if user = os.Getenv("KONG_PG_USER"); user == "" {
-		log.Panic("KONG_PG_USER is required")
+		log.Print("KONG_PG_USER is required")
 	}
 
 	if password = os.Getenv("KONG_PG_PASSWORD"); password == "" {
-		log.Panic("KONG_PG_PASSWORD is required")
+		log.Print("KONG_PG_PASSWORD is required")
 	}
 
 	if port, _ = strconv.Atoi(os.Getenv("KONG_PG_PORT")); port == 0 {
-		log.Panic("KONG_PG_PORT is required")
+		log.Print("KONG_PG_PORT is required")
 	}
 
 	if dbname = os.Getenv("KONG_DATABASE"); dbname == "" {
-		log.Panic("KONG_DATABASE is required")
+		log.Print("KONG_DATABASE is required")
 	}
 
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
@@ -77,7 +101,20 @@ func connectToPostgres() (*sql.DB, error) {
 }
 
 func (conf Config) Access(kong *pdk.PDK) {
+	defer func() {
+		// recover from panic if one occured.
+		if err := recover(); err != nil { //catch
+			e := fmt.Errorf("[GoQLPlugin].[Access] An unexpected exception occured: %v", err)
+			kong.Response.Exit(500, e.Error(), map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
+		}
+	}()
+
 	_ = kong.Log.Debug("[GoQLPlugin].[Access] Start")
+
+	err := initGoql()
+	if err != nil {
+		log.Print(err.Error())
+	}
 
 	reqRawBody, err := kong.Request.GetRawBody()
 	if err != nil {
@@ -85,13 +122,23 @@ func (conf Config) Access(kong *pdk.PDK) {
 		return
 	}
 
-	query, err := query.Parse(string(reqRawBody))
+	var q Query
+	if err := json.Unmarshal(reqRawBody, &q); err != nil {
+		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
+		return
+	}
+	kong.Log.Debug("[GoQLPlugin].[Access] Incoming Query : " + q.Q)
+
+	query, err := query.Parse(q.Q)
 	if err != nil {
 		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
 		return
 	}
 
-	allowed := conf.Whitelister.OperationAllowed(context.Background(), query.OperationName()) // TODO: context???
+	operationName := query.OperationName()
+	kong.Log.Debug("[GoQLPlugin].[Access] Operation Name : " + operationName)
+	kong.Log.Debug(fmt.Sprintf("[GoQLPlugin].[Access] whitelisterke : %v", whitelister))
+	allowed := whitelister.OperationAllowed(context.Background(), operationName) // TODO: context???
 	if !allowed {
 		kong.Response.Exit(403, "Query Not Allowed", map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
 		return
