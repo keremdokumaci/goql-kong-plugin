@@ -71,7 +71,7 @@ func (conf Config) Access(kong *pdk.PDK) {
 		// recover from panic if one occured.
 		if err := recover(); err != nil { //catch
 			e := fmt.Errorf("[GoQLPlugin].[Access] An unexpected exception occured: %v", err)
-			kong.Response.Exit(500, e.Error(), map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
+			kong.Response.Exit(500, e.Error(), map[string][]string{"Content-Type": {"application/json"}})
 		}
 	}()
 
@@ -79,32 +79,35 @@ func (conf Config) Access(kong *pdk.PDK) {
 
 	reqRawBody, err := kong.Request.GetRawBody()
 	if err != nil {
-		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
+		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}})
 		return
 	}
 
 	var q Query
 	if err := json.Unmarshal(reqRawBody, &q); err != nil {
-		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
+		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}})
 		return
 	}
 
 	query, err := query.Parse(q.Q)
 	if err != nil {
-		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
+		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}})
 		return
 	}
 
 	operationName := query.OperationName()
 
-	allowed, err := whitelister.OperationAllowed(context.Background(), operationName) // TODO: context???
+	ctx, ctxCancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer ctxCancel()
+
+	allowed, err := whitelister.OperationAllowed(ctx, operationName)
 	if err != nil {
-		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
+		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}})
 		return
 	}
 
 	if !allowed {
-		kong.Response.Exit(403, "Query Not Allowed", map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
+		kong.Response.Exit(403, "Query Not Allowed", map[string][]string{"Content-Type": {"application/json"}})
 		return
 	}
 
@@ -130,20 +133,19 @@ func (conf Config) Response(kong *pdk.PDK) {
 
 	var q Query
 	if err := json.Unmarshal(reqRawBody, &q); err != nil {
-		kong.Log.Info("\n[GoQLPlugin].[Response] error while unmarshaling request body\n" + err.Error()) // TODO: make it better
+		kong.Log.Info("\n[GoQLPlugin].[Response] error while unmarshaling request body\n" + err.Error())
 		return
 	}
 
 	response, err := kong.ServiceResponse.GetRawBody()
-	kong.Log.Debug("sourceke : ", response)
 	if err != nil {
-		kong.Log.Info("\n[GoQLPlugin].[Response] error while getting response body\n" + err.Error()) // TODO: make it better
+		kong.Log.Info("\n[GoQLPlugin].[Response] error while getting response body\n" + err.Error())
 		return
 	}
 
 	err = cacher.CacheQuery(q.Q, response, time.Second*20)
 	if err != nil {
-		kong.Log.Info("\n[GoQLPlugin].[Response] error while caching query\n" + err.Error()) // TODO: make it better
+		kong.Log.Info("\n[GoQLPlugin].[Response] error while caching query\n" + err.Error())
 		return
 	}
 }
