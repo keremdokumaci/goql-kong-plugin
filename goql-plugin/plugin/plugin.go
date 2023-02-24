@@ -8,17 +8,11 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/Kong/go-pdk"
-	"github.com/keremdokumaci/goql"
 	"github.com/keremdokumaci/goql/pkg/gql/query"
-	"github.com/keremdokumaci/goql/pkg/migrations"
 	_ "github.com/lib/pq"
-)
-
-var (
-	gq          = goql.New()
-	whitelister goql.WhiteLister
 )
 
 const (
@@ -28,43 +22,15 @@ const (
 
 type Config struct{}
 
-type Query struct {
-	Q string `json:"query"`
-}
-
 func New() any {
 	conf := &Config{}
+
+	err := initGoql()
+	if err != nil {
+		log.Print(err.Error())
+	}
+
 	return conf
-}
-
-func initGoql() error {
-	if whitelister != nil {
-		return nil
-	}
-
-	db, err := connectToPostgres()
-	if err != nil {
-		log.Print(err.Error())
-		return err
-	}
-
-	gq.ConfigureCache(goql.INMEMORY).
-		ConfigureDB(goql.POSTGRES, db)
-
-	err = migrations.MigratePostgres(db)
-	if err != nil {
-		log.Print(err.Error())
-		return err
-	}
-
-	wl, err := gq.UseWhitelister()
-	if err != nil {
-		log.Print(err.Error())
-		return err
-	}
-
-	whitelister = wl
-	return nil
 }
 
 func connectToPostgres() (*sql.DB, error) {
@@ -111,11 +77,6 @@ func (conf Config) Access(kong *pdk.PDK) {
 
 	_ = kong.Log.Debug("[GoQLPlugin].[Access] Start")
 
-	err := initGoql()
-	if err != nil {
-		log.Print(err.Error())
-	}
-
 	reqRawBody, err := kong.Request.GetRawBody()
 	if err != nil {
 		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
@@ -127,7 +88,6 @@ func (conf Config) Access(kong *pdk.PDK) {
 		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
 		return
 	}
-	kong.Log.Debug("[GoQLPlugin].[Access] Incoming Query : " + q.Q)
 
 	query, err := query.Parse(q.Q)
 	if err != nil {
@@ -136,8 +96,6 @@ func (conf Config) Access(kong *pdk.PDK) {
 	}
 
 	operationName := query.OperationName()
-	kong.Log.Debug("[GoQLPlugin].[Access] Operation Name : " + operationName)
-	kong.Log.Debug(fmt.Sprintf("[GoQLPlugin].[Access] whitelisterke : %v", whitelister))
 
 	allowed, err := whitelister.OperationAllowed(context.Background(), operationName) // TODO: context???
 	if err != nil {
@@ -150,5 +108,42 @@ func (conf Config) Access(kong *pdk.PDK) {
 		return
 	}
 
+	res := cacher.GetQueryCache(q.Q)
+	if res != nil {
+		kong.Response.Exit(200, res.(string), map[string][]string{"Content-Type": {"application/json"}})
+	}
+
 	_ = kong.Log.Debug("[GoQLPlugin].[Access] Finish")
+}
+
+func (conf Config) Response(kong *pdk.PDK) {
+	status, _ := kong.Response.GetStatus()
+	if status < 200 || status > 299 {
+		return
+	}
+
+	reqRawBody, err := kong.Request.GetRawBody()
+	if err != nil {
+		kong.Log.Info("\n[GoQLPlugin].[Response] error while getting request body\n" + err.Error())
+		return
+	}
+
+	var q Query
+	if err := json.Unmarshal(reqRawBody, &q); err != nil {
+		kong.Log.Info("\n[GoQLPlugin].[Response] error while unmarshaling request body\n" + err.Error()) // TODO: make it better
+		return
+	}
+
+	response, err := kong.ServiceResponse.GetRawBody()
+	kong.Log.Debug("sourceke : ", response)
+	if err != nil {
+		kong.Log.Info("\n[GoQLPlugin].[Response] error while getting response body\n" + err.Error()) // TODO: make it better
+		return
+	}
+
+	err = cacher.CacheQuery(q.Q, response, time.Second*20)
+	if err != nil {
+		kong.Log.Info("\n[GoQLPlugin].[Response] error while caching query\n" + err.Error()) // TODO: make it better
+		return
+	}
 }

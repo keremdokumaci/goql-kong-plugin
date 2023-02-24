@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/Kong/go-pdk v0.8.0
-	github.com/keremdokumaci/goql v0.1.8
+	github.com/keremdokumaci/goql v0.1.9
 	github.com/lib/pq v1.10.7
 )
 
