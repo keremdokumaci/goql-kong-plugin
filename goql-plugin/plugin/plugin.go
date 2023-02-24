@@ -138,7 +138,13 @@ func (conf Config) Access(kong *pdk.PDK) {
 	operationName := query.OperationName()
 	kong.Log.Debug("[GoQLPlugin].[Access] Operation Name : " + operationName)
 	kong.Log.Debug(fmt.Sprintf("[GoQLPlugin].[Access] whitelisterke : %v", whitelister))
-	allowed := whitelister.OperationAllowed(context.Background(), operationName) // TODO: context???
+
+	allowed, err := whitelister.OperationAllowed(context.Background(), operationName) // TODO: context???
+	if err != nil {
+		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
+		return
+	}
+
 	if !allowed {
 		kong.Response.Exit(403, "Query Not Allowed", map[string][]string{"Content-Type": {"application/json"}}) // TODO: response headers,status etc ...
 		return
