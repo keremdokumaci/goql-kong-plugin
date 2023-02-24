@@ -1,0 +1,1 @@
+DELETE FROM goql.whitelists WHERE operation_name='getCountries';
