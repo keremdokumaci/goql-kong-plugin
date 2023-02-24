@@ -12,12 +12,13 @@ type Query struct {
 }
 
 var (
-	gq          = goql.New()
 	whitelister goql.WhiteLister
 	cacher      goql.Cacher
 )
 
 func initGoql() error {
+	gq := goql.New()
+
 	if whitelister != nil {
 		return nil
 	}
