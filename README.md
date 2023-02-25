@@ -1,4 +1,4 @@
-# [WIP] goql-plugin
+# goql-plugin
 
 A Kong Plugin For GraphQL **Caching** And **Whitelisting** That Uses [GoQL](https://github.com/keremdokumaci/goql).
 
