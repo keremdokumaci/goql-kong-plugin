@@ -29,7 +29,7 @@ func initGoql() error {
 		return err
 	}
 
-	gq.ConfigureCache(goql.INMEMORY).
+	gq.ConfigureInmemoryCache().
 		ConfigureDB(goql.POSTGRES, db)
 
 	err = migrations.MigratePostgres(db)
