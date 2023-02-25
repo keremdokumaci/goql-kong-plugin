@@ -4,11 +4,29 @@ A Kong Plugin For GraphQL **Caching** And **Whitelisting** That Uses [GoQL](http
 
 ## Install & Run
 
-If you have already had **docker**, **docker compose** and **make** then run
+If you have already had **docker**, **docker compose**, **make** and [deck](https://docs.konghq.com/deck/1.19.x/installation/) then run
 
-``` make run ``` or ``` make run_bg ```.
+``` make run ``` or ``` make run_bg ```. Then run ```deck sync```.
 
-To stop the running containers
+### To test the plugin, run
+
+```bash
+curl --location 'http://localhost:8000/graphql' \
+--header 'apikey: PxF0TCBvNhytUHbmP73cPJ5OZi54Rpgq' \
+--header 'Content-Type: application/json' \
+--data '{"query":"query getCountries {\n  countries {\n      code \n      name \n      capital \n      languages {\n          name\n        }\n    }\n}","variables":{}}'
+```
+
+*If you change the query name which not in **whitelists** table then you can receive **403** status code with **Query not allowed** message.*
+
+```bash
+curl --location 'http://localhost:8000/graphql' \
+--header 'apikey: PxF0TCBvNhytUHbmP73cPJ5OZi54Rpgq' \
+--header 'Content-Type: application/json' \
+--data '{"query":"query notExistsQuery {\n  countries {\n      code \n      name \n      capital \n      languages {\n          name\n        }\n    }\n}","variables":{}}'
+```
+
+### To stop the running containers
 
 ``` make stop ``` or ``` make stop_all ```.
 
