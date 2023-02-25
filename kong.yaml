@@ -1,0 +1,31 @@
+_format_version: "3.0"
+services:
+- connect_timeout: 60000
+  enabled: true
+  host: countries.trevorblades.com
+  name: countries
+  port: 443
+  protocol: https
+  read_timeout: 60000
+  retries: 5
+  routes:
+  - expression: http.path == "/graphql"
+    https_redirect_status_code: 426
+    id: dcd7b39c-4cb6-488a-862d-fcd9849fbedd
+    plugins:
+    - enabled: true
+      name: goql
+      protocols:
+      - grpc
+      - grpcs
+      - http
+      - https
+    preserve_host: false
+    priority: 0
+    protocols:
+    - http
+    - https
+    request_buffering: true
+    response_buffering: true
+    strip_path: true
+  write_timeout: 60000
