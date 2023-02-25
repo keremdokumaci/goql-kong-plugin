@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/keremdokumaci/goql"
+	"github.com/keremdokumaci/goql/constants"
 	"github.com/keremdokumaci/goql/pkg/migrations"
 )
 
@@ -30,7 +31,7 @@ func initGoql() error {
 	}
 
 	gq.ConfigureInmemoryCache().
-		ConfigureDB(goql.POSTGRES, db)
+		ConfigureDB(constants.POSTGRES, db)
 
 	err = migrations.MigratePostgres(db)
 	if err != nil {

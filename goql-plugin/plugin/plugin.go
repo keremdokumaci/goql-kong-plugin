@@ -95,12 +95,12 @@ func (conf Config) Access(kong *pdk.PDK) {
 		return
 	}
 
-	operationName := query.OperationName()
+	queryName := query.Name()
 
 	ctx, ctxCancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer ctxCancel()
 
-	allowed, err := whitelister.OperationAllowed(ctx, operationName)
+	allowed, err := whitelister.QueryAllowed(ctx, queryName)
 	if err != nil {
 		kong.Response.Exit(500, err.Error(), map[string][]string{"Content-Type": {"application/json"}})
 		return
