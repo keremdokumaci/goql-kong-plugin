@@ -6,7 +6,15 @@ A Kong Plugin For GraphQL **Caching** And **Whitelisting** That Uses [GoQL](http
 
 If you have already had **docker**, **docker compose**, **make** and [deck](https://docs.konghq.com/deck/1.19.x/installation/) then run
 
-``` make run ``` or ``` make run_bg ```. Then run ```deck sync```.
+``` make run ``` or ``` make run_bg ```. 
+
+## Sync Kong
+
+You can sync kong gateway via given rules in [kong.yaml](./kong.yaml) with running
+
+```bash
+deck sync
+```
 
 ### To test the plugin, run
 
